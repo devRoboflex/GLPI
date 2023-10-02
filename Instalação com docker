@@ -1,0 +1,100 @@
+Instalando GLPI com docker
+
+# Criando volumes 
+docker volume create mariadb && docker volume create glpi && docker volume create certificates
+
+# Subindo o container de banco de dados
+
+docker run -d --name='mariadb' \
+     --hostname='mariadb' \
+     -e MARIADB_ROOT_PASSWORD='Roboflex()123' \
+     -e MARIADB_DATABASE='glpi' \
+     -e MARIADB_USER='glpi' \
+     -e MARIADB_PASSWORD='21121982' \
+     -v mariadb:/var/lib/mysql \
+--restart=always mariadb:latest
+
+# Subindo o container do GLPI
+
+docker run -d --name='glpi' \
+     --hostname='glpi' \
+     --link='mariadb:mariadb' \
+     -e TIMEZONE='America/Sao_Paulo' \
+     -e VERSION='10.0.2' \
+     -v glpi:/var/www/html \
+     -v certificates:/etc/certificates \
+     -p 8080:80 \
+--restart=always diouxx/glpi
+
+# acesse a maquina via navegador e siga as instruções para instalar o glpi
+
+
+# configurando diretorio LDAP com google 
+#Insita os arquivos fornecidos pela google na pasta /etc/certificates e os renomeie 
+para glpi_ldap
+
+docker exec -it glpi bash
+
+cd /etc/certificates
+chown root ./glpi_ldap.crt
+chown root ./glpi_ldap.key
+chmod 400 ./glpi_ldap.crt
+chmod 400 ./glpi_ldap.key
+
+
+apt-get update
+apt-get upgrade
+apt-get install stunnel
+
+apt-get install nano
+
+nano /etc/stunnel/stunnel.conf
+# Copie e cole dentro do aquivo:
+
+[ldap]
+client = yes
+accept = 127.0.0.1:1636
+connect = ldap.google.com:636
+cert = /etc/certificates/glpi_ldap.crt
+key = /etc/certificates/glpi_ldap.key
+
+
+nano /etc/default/stunnel4
+adicionar "ENABLED=1" na ultima linha
+
+/etc/init.d/stunnel4 restart
+
+Configurar os seguintes parâmetros na aba “Diretório LDAP”:
+Nome: <nome>-LDAP.
+Servidor padrão: Sim.
+Ativo: Sim.
+Servidor: 127.0.0.1
+Porta LDAP: 1636
+Base DN: dc=roboflex,dc=com,dc=br
+Usar Bind para ligações não anônimas: Sim
+
+RootDN: Utilizar o nome de usuário criado no Google LDAP.
+Senha: Utilizar a senha gerada pelo Google LDAP. Essa senha apaga depois que a gente clicar em salvar, mas ela será gravada.
+Campo de login: mail.
+Demais campos: em branco.
+Salvar.
+
+Configurar os seguintes parâmetros na aba “Usuários”:
+Sobrenome: sn.
+E-mail: mail.
+Telefone: telephonenumber.
+Nome: givenname.
+Salvar.
+
+Configurar os seguintes parâmetros na aba “Informações Avançadas”:
+Usar TLS: Não.
+Fuso horário do diretório LDAP: GMT -3 horas.
+Usar resultados paginados: Não.
+Tamanho da página 100.
+Número máximo de resultados: Ilimitado.
+Como os aliases do LDAP devem ser manipulados: Nunca desreferenciado (padrão).
+Nome do domínio para relacionar usuário usado pela ferramenta de inventário: dc=roboflex,dc=com,dc=br 
+Certificado TLS: /etc/certificates/glpi_ldap.crt 
+Arquivo de chave TLS: /etc/certificates/glpi_ldap.key 
+Tempo limite: 10.
+Salvar.
